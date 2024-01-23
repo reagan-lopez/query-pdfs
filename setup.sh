@@ -1,3 +1,5 @@
-conda create -p venv -y python=3.10
-conda activate ./venv
+#!/bin/bash
+python3.11 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt

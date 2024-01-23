@@ -1,5 +1,6 @@
-FROM python:3.10
+FROM python:3.11
 WORKDIR /usr/src/query-pdfs
-RUN source setup.sh
 COPY . .
+RUN chmod +x setup.sh && ./setup.sh
+ENV PATH="/usr/src/query-pdfs/venv/bin:${PATH}"
 CMD ["streamlit", "run", "app.py"]

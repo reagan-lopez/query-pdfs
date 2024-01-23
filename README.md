@@ -1,5 +1,7 @@
 # Query PDFs using Google GeminiPro
+
 ## Steps:
+
 - Clone the repo and `cd` into it.
 - Set up and install dependencies. `source setup.sh`
 - Get a GOOGLE_API_KEY for Gemini Pro from https://ai.google.dev/.
