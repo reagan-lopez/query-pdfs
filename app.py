@@ -1,4 +1,6 @@
 import os
+import logging
+import shutil
 from dotenv import load_dotenv
 import google.generativeai as genai
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -13,6 +15,19 @@ import streamlit as st
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+vector_store_name = "vector_store"
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# Delete vector store
+def del_vector_store():
+    try:
+        shutil.rmtree(vector_store_name)
+        logger.info(f"The directory '{vector_store_name}' has been deleted.")
+    except Exception as e:
+        logger.exception(f"Error deleting the directory: {e}")
 
 
 # Extract text from pdf.
@@ -35,7 +50,7 @@ def get_text_chunks(pdf_text):
 # Embed the chunks and insert into vector store.
 def set_vector_store(text_chunks):
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
-    vector_store.save_local("vector_store")
+    vector_store.save_local(vector_store_name)
 
 
 # Define chain using model and prompt template.
@@ -61,14 +76,11 @@ def get_chain():
 # Generate response using the vector store and model.
 def get_response(user_query):
     try:
-        vector_store = FAISS.load_local("vector_store", embeddings=embeddings)
+        vector_store = FAISS.load_local(vector_store_name, embeddings=embeddings)
     except Exception as e:
         return "Please upload PDFs to be queried."
 
     else:
-        if not vector_store:
-            return "Please upload the PDFs to be queried!"
-
         docs = vector_store.similarity_search(user_query)
         chain = get_chain()
         response = chain(
@@ -85,6 +97,12 @@ def get_message(role, content):
 if __name__ == "__main__":
     st.set_page_config("Query PDFs")
     st.header("Query PDFs using GeminiPro")
+
+    # Delete vector store on first run
+    if "first_run" not in st.session_state:
+        if os.path.exists(vector_store_name):
+            del_vector_store()
+        st.session_state["first_run"] = True
 
     # Upload PDF section
     with st.sidebar:
