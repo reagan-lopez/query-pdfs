@@ -10,8 +10,7 @@ from langchain.prompts import PromptTemplate
 from langchain.chains.question_answering import load_qa_chain
 from langchain_community.vectorstores import FAISS
 from PyPDF2 import PdfReader
-from pdfquery import PDFQuery
-from pdfquery.cache import FileCache
+import streamlit as st
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
@@ -95,40 +94,48 @@ def get_message(role, content):
     return {"role": role, "content": content}
 
 
-LABEL_MAP = {
-    "Employer identification number": [20, 150],
-    "Wages, tips, other compensation": [20, 150],
-    "Social security wages": [20, 150],
-    "Medicare tax withheld": [20, 150],
-}
-
 if __name__ == "__main__":
-    """if os.path.exists(vector_store_name):
-    del_vector_store()"""
-    pdf = PDFQuery(
-        "data/W2_XL_input_clean_1010.pdf", parse_tree_cacher=FileCache("/tmp/")
-    )
-    pdf.load(0)
+    st.set_page_config("Query PDFs")
+    st.header("Query PDFs using GeminiPro")
 
-    # Use CSS-like selectors to locate the elements
-    text_elements = pdf.pq("LTTextLineHorizontal")
+    # Delete vector store on first session run
+    if "first_run" not in st.session_state:
+        if os.path.exists(vector_store_name):
+            del_vector_store()
+        st.session_state["first_run"] = True
 
-    # Extract the text from the elements
-    for t in text_elements:
-        print(t.text)
+    # Upload PDF section
+    with st.sidebar:
+        st.title("Menu:")
+        pdfs = st.file_uploader("Upload PDFs:", accept_multiple_files=True)
+        if st.button("Upload"):
+            with st.spinner("Processing.."):
+                pdf_text = get_pdf_text(pdfs)
+                text_chunks = get_text_chunks(pdf_text)
+                set_vector_store(text_chunks)
+                st.success("Done!")
 
-    for key, value in LABEL_MAP.items():
-        label = pdf.pq('LTTextLineHorizontal:contains("{}")'.format(key))
-        if label:
-            left_corner = float(label.attr("x0"))
-            bottom_corner = float(label.attr("y0"))
-            label_value = pdf.pq(
-                'LTTextLineHorizontal:in_bbox("%s, %s, %s, %s")'
-                % (
-                    left_corner,
-                    bottom_corner - value[0],
-                    left_corner + value[1],
-                    bottom_corner,
-                )
-            ).text()
-            print(f"{key} : {label_value}")
+    # Initialize "messages" key in streamlit session
+    if "messages" not in st.session_state.keys():
+        message = get_message("assistant", "Upload PDFs and query.")
+        st.session_state.messages = [message]
+
+    # User prompt
+    if user_prompt := st.chat_input():
+        message = get_message("user", user_prompt)
+        st.session_state.messages.append(message)
+
+    # Display all messages in current session
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+
+    # Generate last message
+    last_message = st.session_state.messages[-1]
+    if last_message["role"] != "assistant":
+        with st.chat_message("assistant"):
+            with st.spinner("Processing.."):
+                response = get_response(user_prompt)
+                st.write(response)
+                message = get_message("assistant", response)
+                st.session_state.messages.append(message)
